@@ -1,0 +1,25 @@
+repositories:
+  - url: https://github.com/olegsl2011/GoiT-DevOps-Project.git
+    name: django-helm
+
+applications:
+  - name: django-app
+    project: default
+
+    repoURL: https://github.com/olegsl2011/GoiT-DevOps-Project.git
+    path: charts/django-app
+    targetRevision: main
+
+    server: https://kubernetes.default.svc
+    namespace: django
+
+    helm:
+      valueFiles:
+        - values.yaml
+
+    syncPolicy:
+      automated:
+        prune: true
+        selfHeal: true
+      syncOptions:
+        - CreateNamespace=true

@@ -1,0 +1,28 @@
+{{- range .Values.applications }}
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: {{ .name }}
+  namespace: {{ $.Release.Namespace }}
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: {{ .repoURL | quote }}
+    path: {{ .path | quote }}
+    targetRevision: {{ .targetRevision | default "HEAD" | quote }}
+    helm:
+      valueFiles:
+        - values.yaml
+  destination:
+    server: {{ .server | quote }}
+    namespace: {{ .namespace | quote }}
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+{{- end }}
