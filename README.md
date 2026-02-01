@@ -464,3 +464,177 @@ For issues and troubleshooting:
 3. **Common Problems**: Check [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) for solutions
 4. **System Status**: Run `./check-status.sh` for system status overview
 5. **Logs**: Review component logs using kubectl commands provided above
+
+
+
+admin@Olegs-MacBook-Pro microservice-project % kubectl get app -n argocd
+kubectl describe app django-app -n argocd | sed -n '1,120p'
+NAME         SYNC STATUS   HEALTH STATUS
+django-app   Synced        Healthy
+Name:         django-app
+Namespace:    argocd
+Labels:       app.kubernetes.io/managed-by=Helm
+Annotations:  meta.helm.sh/release-name: argocd-apps
+              meta.helm.sh/release-namespace: argocd
+API Version:  argoproj.io/v1alpha1
+Kind:         Application
+Metadata:
+  Creation Timestamp:  2026-02-01T09:35:00Z
+  Finalizers:
+    resources-finalizer.argocd.argoproj.io
+  Generation:        123
+  Resource Version:  32802
+  UID:               cdf6091b-3abb-4f00-8e6f-18509a2290d9
+Spec:
+  Destination:
+    Namespace:  django
+    Server:     https://kubernetes.default.svc
+  Project:      default
+  Source:
+    Helm:
+      Value Files:
+        values.yaml
+    Path:             charts/django-app
+    Repo URL:         https://github.com/olegsl2011/GoiT-DevOps-Project.git
+    Target Revision:  lesson-8-9
+  Sync Policy:
+    Automated:
+      Prune:      true
+      Self Heal:  true
+    Sync Options:
+      CreateNamespace=true
+Status:
+  Controller Namespace:  argocd
+  Health:
+    Status:  Healthy
+  History:
+    Deploy Started At:  2026-02-01T09:50:49Z
+    Deployed At:        2026-02-01T09:50:53Z
+    Id:                 0
+    Revision:           5570e80ea8b3075a7520131277c4a15feb8ac54a
+    Source:
+      Helm:
+        Value Files:
+          values.yaml
+      Path:             charts/django-app
+      Repo URL:         https://github.com/olegsl2011/GoiT-DevOps-Project.git
+      Target Revision:  lesson-8-9
+    Deploy Started At:  2026-02-01T10:33:21Z
+    Deployed At:        2026-02-01T10:33:22Z
+    Id:                 1
+    Revision:           ec605d99917c6afb15049725a2795f288c77106b
+    Source:
+      Helm:
+        Value Files:
+          values.yaml
+      Path:             charts/django-app
+      Repo URL:         https://github.com/olegsl2011/GoiT-DevOps-Project.git
+      Target Revision:  lesson-8-9
+    Deploy Started At:  2026-02-01T10:46:34Z
+    Deployed At:        2026-02-01T10:46:34Z
+    Id:                 2
+    Revision:           131a8503d11c29c774392340cc5454989727c256
+    Source:
+      Helm:
+        Value Files:
+          values.yaml
+      Path:             charts/django-app
+      Repo URL:         https://github.com/olegsl2011/GoiT-DevOps-Project.git
+      Target Revision:  lesson-8-9
+  Operation State:
+    Finished At:  2026-02-01T10:46:34Z
+    Message:      successfully synced (all tasks run)
+    Operation:
+      Initiated By:
+        Automated:  true
+      Retry:
+        Limit:  5
+      Sync:
+        Prune:     true
+        Revision:  131a8503d11c29c774392340cc5454989727c256
+        Sync Options:
+          CreateNamespace=true
+    Phase:       Succeeded
+    Started At:  2026-02-01T10:46:34Z
+    Sync Result:
+      Resources:
+        Group:       
+        Hook Phase:  Running
+        Kind:        ConfigMap
+        Message:     configmap/django-config unchanged
+        Name:        django-config
+        Namespace:   django
+        Status:      Synced
+        Sync Phase:  Sync
+        Version:     v1
+        Group:       
+        Hook Phase:  Running
+        Kind:        Service
+        Message:     service/django-app configured
+        Name:        django-app
+        Namespace:   django
+        Status:      Synced
+        Sync Phase:  Sync
+        Version:     v1
+        Group:       apps
+        Hook Phase:  Running
+        Kind:        Deployment
+        Message:     deployment.apps/django-app configured
+        Name:        django-app
+        Namespace:   django
+        Status:      Synced
+        Sync Phase:  Sync
+        Version:     v1
+        Group:       autoscaling
+        Hook Phase:  Running
+        Kind:        HorizontalPodAutoscaler
+        Message:     horizontalpodautoscaler.autoscaling/django-app unchanged
+        Name:        django-app
+        Namespace:   django
+admin@Olegs-MacBook-Pro microservice-project % 
+admin@Olegs-MacBook-Pro microservice-project % 
+admin@Olegs-MacBook-Pro microservice-project % 
+admin@Olegs-MacBook-Pro microservice-project % kubectl get all -n django
+kubectl get svc -n django
+NAME                              READY   STATUS    RESTARTS   AGE
+pod/django-app-6cc48466d5-7frxk   1/1     Running   0          16m
+pod/django-app-6cc48466d5-n4nc4   1/1     Running   0          15m
+
+NAME                 TYPE           CLUSTER-IP      EXTERNAL-IP                                                               PORT(S)        AGE
+service/django-app   LoadBalancer   172.20.12.245   af4f2f41971924b30b30ce397185982e-1288352411.us-west-2.elb.amazonaws.com   80:30820/TCP   71m
+
+NAME                         READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/django-app   2/2     2            2           71m
+
+NAME                                    DESIRED   CURRENT   READY   AGE
+replicaset.apps/django-app-674f79bc88   0         0         0       71m
+replicaset.apps/django-app-6cc48466d5   2         2         2       16m
+replicaset.apps/django-app-6f8b66565    0         0         0       29m
+
+NAME                                             REFERENCE               TARGETS         MINPODS   MAXPODS   REPLICAS   AGE
+horizontalpodautoscaler.autoscaling/django-app   Deployment/django-app   <unknown>/70%   2         6         2          71m
+NAME         TYPE           CLUSTER-IP      EXTERNAL-IP                                                               PORT(S)        AGE
+django-app   LoadBalancer   172.20.12.245   af4f2f41971924b30b30ce397185982e-1288352411.us-west-2.elb.amazonaws.com   80:30820/TCP   71m
+admin@Olegs-MacBook-Pro microservice-project % 
+
+
+admin@Olegs-MacBook-Pro microservice-project % DJ_URL="http://af4f2f41971924b30b30ce397185982e-1288352411.us-west-2.elb.amazonaws.com"
+curl -I $DJ_URL
+# або якщо є endpoint:
+curl -s $DJ_URL/health/ || true
+
+HTTP/1.1 200 OK
+Server: nginx/1.29.4
+Date: Sun, 01 Feb 2026 11:05:29 GMT
+Content-Type: text/html
+Content-Length: 3
+Last-Modified: Sun, 01 Feb 2026 10:07:45 GMT
+Connection: keep-alive
+ETag: "697f25f1-3"
+Accept-Ranges: bytes
+
+
+admin@Olegs-MacBook-Pro microservice-project % kubectl get svc -n django
+
+NAME         TYPE           CLUSTER-IP      EXTERNAL-IP                                                               PORT(S)        AGE
+django-app   LoadBalancer   172.20.12.245   af4f2f41971924b30b30ce397185982e-1288352411.us-west-2.elb.amazonaws.com   80:30820/TCP   93m
