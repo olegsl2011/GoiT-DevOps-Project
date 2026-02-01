@@ -43,7 +43,7 @@ spec:
         CHART_REPO_URL = "https://github.com/olegsl2011/GoiT-DevOps-Project.git"
         CHART_REPO_BRANCH = "main"
         CHART_PATH = "charts/django-app"
-        APP_REPO_URL = "https://github.com/olegsl2011/GoiT-DevOps-Project-django.git"
+        APP_REPO_URL = "https://github.com/olegsl2011/test_jenkins.git"
         APP_REPO_BRANCH = "main"
     }
     
@@ -196,7 +196,7 @@ EOF
                                     git commit -m "CI: Update image tag to ${IMAGE_TAG} for build ${BUILD_NUMBER}"
                                     
                                     # Push using credentials
-                                    git remote set-url origin https://\${GIT_USERNAME}:\${GIT_PASSWORD}@github.com/Bignichok/microservice-project.git
+                                    git remote set-url origin https://${GIT_USERNAME}:${GIT_PASSWORD}@github.com/olegsl2011/GoiT-DevOps-Project.git
                                     git push origin ${CHART_REPO_BRANCH}
                                     
                                     echo "Successfully pushed updated chart with image tag: ${IMAGE_TAG}"
