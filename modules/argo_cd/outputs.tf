@@ -1,6 +1,6 @@
 output "argocd_url" {
   description = "ArgoCD URL"
-  value = var.ingress_enabled ? "https://${var.ingress_host}" : "http://${data.kubernetes_service.argocd_server.status[0].load_balancer[0].ingress[0].hostname}"
+  value       = var.ingress_enabled ? "https://${var.ingress_host}" : "http://${data.kubernetes_service.argocd_server.status[0].load_balancer[0].ingress[0].hostname}"
 }
 
 output "argocd_admin_password" {

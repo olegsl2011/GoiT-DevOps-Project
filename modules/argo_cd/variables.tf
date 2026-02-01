@@ -20,7 +20,7 @@ variable "admin_password" {
   type        = string
   sensitive   = true
   # Default password: admin123! (bcrypt hash)
-  default     = "$2a$12$hBwbOHm5r.DwjUn/J7lzMe.o7oQzitqLlYOj/wPLgk7vGtQ4J2oCG"
+  default = "$2a$12$hBwbOHm5r.DwjUn/J7lzMe.o7oQzitqLlYOj/wPLgk7vGtQ4J2oCG"
 }
 
 variable "ingress_enabled" {
@@ -48,11 +48,11 @@ variable "repositories" {
 variable "applications" {
   description = "List of ArgoCD applications to create"
   type = list(object({
-    name        = string
-    namespace   = string
-    source_repo = string
-    source_path = string
-    dest_server = string
+    name           = string
+    namespace      = string
+    source_repo    = string
+    source_path    = string
+    dest_server    = string
     dest_namespace = string
   }))
   default = []

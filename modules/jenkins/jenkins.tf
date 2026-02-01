@@ -79,15 +79,15 @@ resource "aws_iam_role_policy" "jenkins_ecr" {
 }
 
 resource "helm_release" "jenkins" {
-  name       = "jenkins"
-  repository = "https://charts.jenkins.io"
-  chart      = "jenkins"
-  version    = var.jenkins_chart_version
-  namespace  = kubernetes_namespace.jenkins.metadata[0].name
-  timeout    = 600
-  wait       = true
+  name          = "jenkins"
+  repository    = "https://charts.jenkins.io"
+  chart         = "jenkins"
+  version       = var.jenkins_chart_version
+  namespace     = kubernetes_namespace.jenkins.metadata[0].name
+  timeout       = 600
+  wait          = true
   wait_for_jobs = true
-  
+
   values = [templatefile("${path.module}/values.yaml", {
     namespace            = var.namespace
     service_account_name = kubernetes_service_account.jenkins.metadata[0].name
@@ -95,7 +95,7 @@ resource "helm_release" "jenkins" {
     storage_class        = var.storage_class
     storage_size         = var.storage_size
     ecr_repository_url   = var.ecr_repository_url
-    aws_region          = var.aws_region
+    aws_region           = var.aws_region
   })]
 
   depends_on = [

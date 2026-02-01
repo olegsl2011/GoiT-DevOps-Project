@@ -667,3 +667,42 @@ NAME         SYNC STATUS   HEALTH STATUS
 django-app   Synced        Progressing
 908061117191.dkr.ecr.us-west-2.amazonaws.com/goit-devops-project-ecr:v2
 admin@Olegs-MacBook-Pro GoiT-DevOps-Project % kubectl rollout status deploy/django-app -n django
+
+
+# Terraform RDS/Aurora module
+
+## What it does
+This module creates either:
+- classic AWS RDS instance (PostgreSQL/MySQL) when `use_aurora=false`
+- or Aurora cluster + instances when `use_aurora=true`
+
+In both cases it also creates:
+- DB Subnet Group
+- Security Group (+ ingress rules)
+- Parameter Group (RDS or Aurora cluster parameter group)
+
+## Usage
+
+### RDS example
+```hcl
+module "rds" {
+  source = "./modules/rds"
+  name   = "demo-db"
+
+  use_aurora = false
+
+  vpc_id             = module.vpc.vpc_id
+  private_subnet_ids = module.vpc.private_subnet_ids
+
+  engine                  = "postgres"
+  engine_version           = "15.4"
+  instance_class           = "db.t3.micro"
+  multi_az                 = false
+  parameter_group_family   = "postgres15"
+
+  allowed_cidr_blocks = ["10.0.0.0/16"]
+}
+
+
+  # module.rds.aws_db_instance.this[0] will be created
+

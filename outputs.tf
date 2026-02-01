@@ -1,10 +1,10 @@
 output "s3_backend_info" {
   description = "Information about S3 bucket and DynamoDB table"
   value = {
-    s3_bucket_name       = module.s3_backend.s3_bucket_name
-    s3_bucket_arn        = module.s3_backend.s3_bucket_arn
-    dynamodb_table_name  = module.s3_backend.dynamodb_table_name
-    dynamodb_table_arn   = module.s3_backend.dynamodb_table_arn
+    s3_bucket_name      = module.s3_backend.s3_bucket_name
+    s3_bucket_arn       = module.s3_backend.s3_bucket_arn
+    dynamodb_table_name = module.s3_backend.dynamodb_table_name
+    dynamodb_table_arn  = module.s3_backend.dynamodb_table_arn
   }
 }
 
@@ -29,17 +29,29 @@ output "ecr_info" {
   }
 }
 
+output "db_endpoint" {
+  value = module.rds.endpoint
+}
+
+output "db_port" {
+  value = module.rds.port
+}
+
+output "db_user" {
+  value = module.rds.master_username
+}
+
 output "eks_info" {
   description = "Information about EKS cluster"
   value = {
-    cluster_id                     = module.eks.cluster_id
-    cluster_arn                    = module.eks.cluster_arn
-    cluster_name                   = module.eks.cluster_name
-    cluster_endpoint               = module.eks.cluster_endpoint
-    cluster_version                = module.eks.cluster_version
-    cluster_security_group_id      = module.eks.cluster_security_group_id
-    node_security_group_id         = module.eks.node_security_group_id
-    oidc_provider_arn              = module.eks.oidc_provider_arn
-    kubectl_config_command         = module.eks.kubectl_config_command
+    cluster_id                = module.eks.cluster_id
+    cluster_arn               = module.eks.cluster_arn
+    cluster_name              = module.eks.cluster_name
+    cluster_endpoint          = module.eks.cluster_endpoint
+    cluster_version           = module.eks.cluster_version
+    cluster_security_group_id = module.eks.cluster_security_group_id
+    node_security_group_id    = module.eks.node_security_group_id
+    oidc_provider_arn         = module.eks.oidc_provider_arn
+    kubectl_config_command    = module.eks.kubectl_config_command
   }
 }

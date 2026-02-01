@@ -17,7 +17,7 @@ terraform {
       version = "~> 2.11"
     }
   }
-  
+
   backend "s3" {
     bucket         = "terraform-state-bucket-goit-devops-project-olegsl"
     key            = "cicd/terraform.tfstate"
@@ -56,13 +56,13 @@ provider "helm" {
 
 module "jenkins" {
   source = "../modules/jenkins"
-  
-  cluster_name          = var.cluster_name
-  namespace            = "jenkins"
+
+  cluster_name           = var.cluster_name
+  namespace              = "jenkins"
   jenkins_admin_password = "admin123!"
-  ecr_repository_url   = var.ecr_repository_url
-  aws_region           = var.aws_region
-  
+  ecr_repository_url     = var.ecr_repository_url
+  aws_region             = var.aws_region
+
   tags = {
     Environment = "microservice-project"
     Project     = "microservice-project"
@@ -72,10 +72,10 @@ module "jenkins" {
 
 module "argo_cd" {
   source = "../modules/argo_cd"
-  
+
   cluster_name = var.cluster_name
   namespace    = "argocd"
-  
+
   repositories = [
     {
       name = "microservice-charts"
@@ -83,7 +83,7 @@ module "argo_cd" {
       type = "git"
     }
   ]
-  
+
   applications = [
     {
       name           = "django-app"
@@ -94,7 +94,7 @@ module "argo_cd" {
       dest_namespace = "default"
     }
   ]
-  
+
   tags = {
     Environment = "microservice-project"
     Project     = "microservice-project"
