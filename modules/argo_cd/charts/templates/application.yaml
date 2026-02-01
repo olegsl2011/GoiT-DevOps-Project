@@ -25,4 +25,12 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
+  helm:
+      valueFiles:
+        - values.yaml
+      parameters:
+        - name: image.repository
+          value: "{{ .repoURL | quote }}"
+        - name: image.tag
+          value: "{{ .imageTag | quote }}"    
 {{- end }}
