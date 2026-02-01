@@ -10,10 +10,6 @@ applications:
     targetRevision: lesson-8-9
     server: https://kubernetes.default.svc
     namespace: django
-    image:
-    repository: "908061117191.dkr.ecr.us-west-2.amazonaws.com/goit-devops-project-ecr"
-    pullPolicy: IfNotPresent
-    tag: "v1"
     helm:
       valueFiles:
         - values.yaml
