@@ -5,17 +5,17 @@ kind: Application
 metadata:
   name: {{ .name }}
   namespace: {{ $.Release.Namespace }}
-  finalizers:
-    - resources-finalizer.argocd.argoproj.io
 spec:
-  project: default
+  project: {{ .project | default "default" | quote }}
   source:
     repoURL: {{ .repoURL | quote }}
     path: {{ .path | quote }}
     targetRevision: {{ .targetRevision | default "HEAD" | quote }}
     helm:
       valueFiles:
-        - values.yaml
+{{- range .helm.valueFiles }}
+        - {{ . | quote }}
+{{- end }}
   destination:
     server: {{ .server | quote }}
     namespace: {{ .namespace | quote }}
@@ -25,12 +25,4 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
-  helm:
-      valueFiles:
-        - values.yaml
-      parameters:
-        - name: image.repository
-          value: "{{ .repoURL | quote }}"
-        - name: image.tag
-          value: "{{ .imageTag | quote }}"    
 {{- end }}

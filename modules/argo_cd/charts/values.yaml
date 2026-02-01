@@ -10,9 +10,11 @@ applications:
     targetRevision: lesson-8-9
     server: https://kubernetes.default.svc
     namespace: django
+
     helm:
       valueFiles:
         - values.yaml
+
     syncPolicy:
       automated:
         prune: true
