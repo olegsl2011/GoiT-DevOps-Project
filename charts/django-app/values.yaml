@@ -3,9 +3,9 @@
 
 # Image settings
 image:
-  repository: ""  # Will be set from ECR URL by Jenkins pipeline
+  repository: "908061117191.dkr.ecr.us-west-2.amazonaws.com/goit-devops-project-ecr"
   pullPolicy: IfNotPresent
-  tag: "latest"
+  tag: "v1"
 
 # Service settings
 service:
