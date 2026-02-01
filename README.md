@@ -638,3 +638,32 @@ admin@Olegs-MacBook-Pro microservice-project % kubectl get svc -n django
 
 NAME         TYPE           CLUSTER-IP      EXTERNAL-IP                                                               PORT(S)        AGE
 django-app   LoadBalancer   172.20.12.245   af4f2f41971924b30b30ce397185982e-1288352411.us-west-2.elb.amazonaws.com   80:30820/TCP   93m
+
+
+admin@Olegs-MacBook-Pro GoiT-DevOps-Project % grep -nE "image:|repository:|tag:" -n charts/django-app/values.yaml
+
+5:image:
+6:  repository: "908061117191.dkr.ecr.us-west-2.amazonaws.com/goit-devops-project-ecr"
+8:  tag: "v2"
+admin@Olegs-MacBook-Pro GoiT-DevOps-Project % kubectl get app django-app -n argocd
+kubectl get deploy django-app -n django -o jsonpath='{.spec.template.spec.containers[0].image}{"\n"}'
+NAME         SYNC STATUS   HEALTH STATUS
+django-app   Synced        Healthy
+908061117191.dkr.ecr.us-west-2.amazonaws.com/goit-devops-project-ecr:v1
+admin@Olegs-MacBook-Pro GoiT-DevOps-Project % kubectl get app django-app -n argocd
+kubectl get deploy django-app -n django -o jsonpath='{.spec.template.spec.containers[0].image}{"\n"}'
+NAME         SYNC STATUS   HEALTH STATUS
+django-app   Synced        Healthy
+908061117191.dkr.ecr.us-west-2.amazonaws.com/goit-devops-project-ecr:v1
+admin@Olegs-MacBook-Pro GoiT-DevOps-Project % kubectl annotate app django-app -n argocd argocd.argoproj.io/refresh=hard --overwrite
+
+application.argoproj.io/django-app annotated
+admin@Olegs-MacBook-Pro GoiT-DevOps-Project % kubectl annotate app django-app -n argocd argocd.argoproj.io/refresh=hard --overwrite
+
+application.argoproj.io/django-app annotated
+admin@Olegs-MacBook-Pro GoiT-DevOps-Project % kubectl get app django-app -n argocd                                                 
+kubectl get deploy django-app -n django -o jsonpath='{.spec.template.spec.containers[0].image}{"\n"}'
+NAME         SYNC STATUS   HEALTH STATUS
+django-app   Synced        Progressing
+908061117191.dkr.ecr.us-west-2.amazonaws.com/goit-devops-project-ecr:v2
+admin@Olegs-MacBook-Pro GoiT-DevOps-Project % kubectl rollout status deploy/django-app -n django
