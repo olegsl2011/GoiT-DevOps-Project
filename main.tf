@@ -5,6 +5,14 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 5.0"
     }
+    kubernetes = {
+      source  = "hashicorp/kubernetes"
+      version = "~> 2.23"
+    }
+    helm = {
+      source  = "hashicorp/helm"
+      version = "~> 2.11"
+    }
   }
 }
 
@@ -76,13 +84,13 @@ module "rds" {
   # allowed_security_group_ids = [module.eks.node_security_group_id]
 
   engine         = "postgres"
-  engine_version = "15.4"
+  engine_version = "15.13"
   instance_class = "db.t3.micro"
   multi_az       = false
 
   db_name         = "appdb"
   master_username = "appuser"
-  master_password = "apppass"
+  master_password = "AppPass123!"
 
   parameter_group_family = "postgres15"
 
@@ -92,56 +100,69 @@ module "rds" {
   }
 }
 
-# Jenkins and Argo CD modules will be deployed in a second step
-# after the EKS cluster is created to avoid circular dependencies
+module "jenkins" {
+  source = "./modules/jenkins"
 
-# module "jenkins" {
-#   source = "./modules/jenkins"
-#   
-#   cluster_name          = module.eks.cluster_name
-#   namespace            = "jenkins"
-#   jenkins_admin_password = "admin123!"
-#   ecr_repository_url   = module.ecr.repository_url
-#   aws_region           = var.aws_region
-#   
-#   tags = {
-#     Environment = "goit-devops-project"
-#     Project     = "goit-devops-project"
-#     ManagedBy   = "terraform"
-#   }
-# }
+  providers = {
+    kubernetes = kubernetes.eks
+    helm       = helm.eks
+  }
 
-# module "argo_cd" {
-#   source = "./modules/argo_cd"
-#   
-#   cluster_name = module.eks.cluster_name
-#   namespace    = "argocd"
-#   
-#   repositories = [
-#     {
-#       name = "goit-devops-project"
-#       url  = "https://github.com/olegsl2011/GoiT-DevOps-Project.git"
-#       type = "git"
-#     }
-#   ]
-#   
-#   applications = [
-#     {
-#       name           = "django-app"
-#       namespace      = "argocd"
-#       source_repo    = "https://github.com/olegsl2011/GoiT-DevOps-Project.git"
-#       source_path    = "charts/django-app"
-#       dest_server    = "https://kubernetes.default.svc"
-#       dest_namespace = "default"
-#     }
-#   ]
-#   
-#   tags = {
-#     Environment = "goit-devops-project"
-#     Project     = "goit-devops-project"
-#     ManagedBy   = "terraform"
-#   }
-# }
+  cluster_name           = module.eks.cluster_name
+  namespace              = "jenkins"
+  jenkins_admin_password = "admin123!"
+  ecr_repository_url     = module.ecr.repository_url
+  aws_region             = var.aws_region
+  tags = {
+    Environment = "goit-devops-project"
+    Project     = "goit-devops-project"
+    ManagedBy   = "terraform"
+  }
+}
+
+
+module "monitoring" {
+  source = "./modules/monitoring"
+
+  providers = {
+    kubernetes = kubernetes.eks
+    helm       = helm.eks
+  }
+
+  cluster_name           = module.eks.cluster_name
+  grafana_admin_password = "admin123!"
+}
+
+module "argo_cd" {
+  source = "./modules/argo_cd"
+
+  providers = {
+    kubernetes = kubernetes.eks
+    helm       = helm.eks
+  }
+
+  cluster_name = module.eks.cluster_name
+  namespace    = "argocd"
+
+  repositories = [
+    {
+      name = "goit-devops-project"
+      url  = "https://github.com/olegsl2011/GoiT-DevOps-Project.git"
+      type = "git"
+    }
+  ]
+
+  applications = [
+    {
+      name           = "django-app"
+      namespace      = "argocd"
+      source_repo    = "https://github.com/olegsl2011/GoiT-DevOps-Project.git"
+      source_path    = "charts/django-app"
+      dest_server    = "https://kubernetes.default.svc"
+      dest_namespace = "default"
+    }
+  ]
+}
 
 variable "aws_region" {
   description = "AWS region"

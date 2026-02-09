@@ -1,708 +1,184 @@
-# CI/CD Microservice Project: Jenkins + Argo CD + EKS + ECR + Helm
+# Final DevOps Project (AWS + Terraform): VPC / EKS / RDS / ECR / Jenkins / Argo CD / Prometheus / Grafana
 
-## Overview
+Цей репозиторій містить Terraform-інфраструктуру та CI/CD пайплайн для розгортання Django застосунку в AWS на Kubernetes (EKS) з GitOps через Argo CD та моніторингом через Prometheus/Grafana.
 
-Complete CI/CD pipeline for Django microservice using **Jenkins**, **Argo CD**, **Amazon EKS**, **ECR**, and **Helm**. This project implements automated building, testing, and deployment of containerized applications with GitOps principles.
+## Архітектура
 
-## Project Structure
+- **VPC**: public + private subnets, IGW, NAT, routing
+- **EKS**: кластер + node group, базові аддони
+- **RDS**: PostgreSQL/MySQL або Aurora (через `use_aurora`)
+- **ECR**: репозиторій для Docker image
+- **Jenkins**: CI (build → push image в ECR)
+- **Argo CD**: CD / GitOps (Helm chart `charts/django-app`)
+- **Monitoring**: `kube-prometheus-stack` (Prometheus, Alertmanager, Grafana), (опційно) metrics-server
 
-```
-├── main.tf                    # Main Terraform configuration with all modules
-├── backend.tf                 # S3 + DynamoDB backend configuration
-├── outputs.tf                 # Infrastructure outputs including CI/CD info
-├── terraform.tfvars.example   # Example variables file
-├── deploy-ci-cd.sh            # Automated CI/CD infrastructure deployment
-├── setup-jenkins.sh           # Jenkins post-deployment configuration
-├── check-status.sh            # Quick status check for all components
-├── Jenkinsfile                # CI pipeline configuration
-├── Dockerfile                 # Django application container
-├── requirements.txt           # Python dependencies
-├── modules/
-│   ├── s3-backend/            # Terraform state storage
-│   ├── vpc/                   # Network infrastructure
-│   ├── ecr/                   # Docker image registry
-│   ├── eks/                   # Kubernetes cluster
-│   ├── jenkins/               # Jenkins CI server with Helm
-│   └── argo_cd/               # Argo CD deployment controller
-├── charts/
-│   └── django-app/            # Helm chart for Django application
-│       ├── Chart.yaml
-│       ├── values.yaml        # Updated by Jenkins pipeline
-│       ├── README.md
-│       └── templates/
-│            ├── _helpers.tpl
-│            ├── configmap.yaml
-│            ├── deployment.yaml
-│            ├── service.yaml
-│            └── hpa.yaml
-└── docs/
-    ├── CI_CD_GUIDE.md         # Detailed CI/CD documentation
-    ├── DEPLOYMENT_CHECKLIST.md # Step-by-step deployment guide
-    ├── QUICKSTART.md          # Quick start guide
-    ├── SETUP.md               # Detailed setup instructions
-    └── TROUBLESHOOTING.md     # Common issues and solutions
-```
+---
 
-## Components
+## Вимоги / prerequisites
 
-### 1. Infrastructure (Terraform modules)
+### Інструменти локально
+- Terraform `>= 1.0` (перевірено: `Terraform v1.14.4`)
+- AWS CLI v2 (перевірено: `aws-cli/2.32.x`)
+- kubectl (перевірено: `v1.34.x`)
+- Helm (перевірено: `v4.x`)
+- (опційно) `yq` для редагування YAML, або `sed` (див. приклади нижче)
 
-- **S3 Backend**: S3 bucket and DynamoDB for Terraform state storage
-- **VPC**: Virtual Private Cloud with public and private subnets
-- **ECR**: Elastic Container Registry for Docker image storage
-- **EKS**: Elastic Kubernetes Service cluster with IRSA support
+### AWS доступ
+- Налаштовані креденшели в `~/.aws/credentials` або через env vars.
+- **Важливо:** Terraform в цьому проєкті використовує регіон з `var.aws_region` (за замовчуванням `us-west-2`).  
+  Якщо у вас в `aws configure` стоїть інший регіон — це ОК, але Terraform все одно піде в `us-west-2`, якщо не перевизначити змінну.
 
-### 2. CI/CD Components
-
-- **Jenkins**: CI server deployed via Helm with Kaniko for container builds
-  - Kubernetes agents for scalable build execution
-  - ECR integration with automatic authentication
-  - GitHub integration for source code management
-- **Argo CD**: GitOps continuous deployment controller
-  - Automatic synchronization from Git repositories
-  - Self-healing and auto-pruning capabilities
-  - Web UI for deployment monitoring
-
-### 3. Application Components
-
-- **Django Application**: Containerized Python web application
-- **Helm Chart**: Kubernetes manifests with ConfigMaps, Deployments, Services, HPA
-- **Docker Images**: Stored in ECR with automated tagging
-
-## CI/CD Workflow
-
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Developer     │    │    Jenkins      │    │   Amazon ECR    │
-│   Push Code     │───▶│   CI Server     │───▶│ Image Registry  │
-│                 │    │   (Kaniko)      │    │                 │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-                                │                        │
-                                │                        │
-                                ▼                        │
-                       ┌─────────────────┐               │
-                       │  Git Repository │               │
-                       │  Update Helm    │               │
-                       │     Charts      │               │
-                       └─────────────────┘               │
-                                │                        │
-                                ▼                        ▼
-                       ┌─────────────────┐    ┌─────────────────┐
-                       │    Argo CD      │    │   EKS Cluster   │
-                       │ CD Controller   │───▶│  Django App     │
-                       │                 │    │                 │
-                       └─────────────────┘    └─────────────────┘
-```
-
-### Process Flow
-
-1. **Developer** pushes code to Django application repository
-2. **Jenkins Pipeline** automatically:
-   - Clones source code
-   - Builds Docker image using Kaniko
-   - Pushes image to ECR with build number tag
-   - Updates Helm chart values.yaml with new image tag
-   - Commits and pushes changes back to Git
-3. **Argo CD** detects Git changes and:
-   - Synchronizes updated Helm chart
-   - Deploys new application version to EKS cluster
-   - Monitors application health
-
-## Deployment Steps
-
-### Option 1: Full CI/CD Infrastructure Deployment
-
+Перевірка доступу:
 ```bash
-# Deploy complete CI/CD infrastructure
-chmod +x deploy-ci-cd.sh
-./deploy-ci-cd.sh
-```
+aws sts get-caller-identity
 
-This will deploy:
-- EKS cluster with all networking components
-- ECR repository for Docker images
-- Jenkins CI server with Kaniko support
-- Argo CD deployment controller
-- Automated configuration and setup
+Крок 0 — Terraform init
 
-### Option 2: Manual Step-by-step Deployment
-
-#### Step 1: Deploy infrastructure
-
-```bash
-
+terraform fmt -recursive
+terraform validate
 terraform init
+
+Створити S3 bucket + DynamoDB table локальним стейтом
+
+terraform apply -target=module.s3_backend
+terraform init -migrate-state
+
+Крок 1 — розгортання інфраструктури (VPC/ECR/EKS/RDS)
+
+terraform apply -target=module.vpc -target=module.ecr -target=module.eks -target=module.rds
+Після створення EKS — оновити kubeconfig:
+aws eks --region us-west-2 update-kubeconfig --name goit-devops-project-eks-cluster
+kubectl get nodes
+
+Крок 2 — Jenkins / Argo CD / Monitoring
+
+terraform apply -target=module.jenkins -target=module.argo_cd -target=module.monitoring
+Після поетапного apply бажано виконати:
 terraform plan
 terraform apply
-```
 
-#### Step 2: Configure kubectl
+Перевірка ресурсів (Kubernetes)
 
-```bash
-CLUSTER_NAME=$(terraform output -raw eks_info | jq -r '.cluster_name')
-aws eks update-kubeconfig --region us-west-2 --name $CLUSTER_NAME
-kubectl get nodes
-```
+admin@Olegs-MacBook-Pro GoiT-DevOps-Project % kubectl port-forward -n jenkins svc/jenkins 8080:80
 
-#### Step 3: Configure CI/CD Tools
+Forwarding from 127.0.0.1:8080 -> 8080
+Forwarding from [::1]:8080 -> 8080
+Handling connection for 8080
+Handling connection for 8080
+Handling connection for 8080
+Handling connection for 8080
+Handling connection for 8080
+Handling connection for 8080
 
-```bash
-# Setup Jenkins credentials and ECR access
-chmod +x setup-jenkins.sh
-./setup-jenkins.sh
+admin@Olegs-MacBook-Pro GoiT-DevOps-Project % kubectl port-forward svc/argocd-server 8081:443 -n argocd
 
-# Check overall system status
-chmod +x check-status.sh
-./check-status.sh
-```
+Forwarding from 127.0.0.1:8081 -> 8080
+Forwarding from [::1]:8081 -> 8080
+Handling connection for 8081
+Handling connection for 8081
+Handling connection for 8081
+Handling connection for 8081
+Handling connection for 8081
+Handling connection for 8081
+Handling connection for 8081
 
-#### Step 4: Setup Jenkins Pipeline
+admin@Olegs-MacBook-Pro GoiT-DevOps-Project % kubectl port-forward svc/kube-prometheus-stack-grafana 3000:80 -n monitoring
 
-1. Access Jenkins UI (URL provided after deployment)
-2. Login with credentials: admin / admin123!
-3. Add GitHub credentials (ID: 'github-credentials')
-4. Create new Pipeline job pointing to your Django repository
-5. Configure webhook for automatic builds
+Forwarding from 127.0.0.1:3000 -> 3000
+Forwarding from [::1]:3000 -> 3000
+Handling connection for 3000
+Handling connection for 3000
+Handling connection for 3000
 
-#### Step 5: Setup Argo CD Application
+admin@Olegs-MacBook-Pro GoiT-DevOps-Project % kubectl get all -n monitoring
 
-1. Access Argo CD UI (URL provided after deployment)
-2. Login with credentials: admin / admin123!
-3. Verify Django application is automatically created
-4. Configure auto-sync policies if needed
+NAME                                                            READY   STATUS    RESTARTS   AGE
+pod/alertmanager-kube-prometheus-stack-alertmanager-0           2/2     Running   0          25m
+pod/kube-prometheus-stack-grafana-8648dfd5fb-8t5wz              3/3     Running   0          25m
+pod/kube-prometheus-stack-kube-state-metrics-777fd46ffb-cn5rf   1/1     Running   0          25m
+pod/kube-prometheus-stack-operator-65896fd55c-wqllv             1/1     Running   0          25m
+pod/kube-prometheus-stack-prometheus-node-exporter-nmp9x        1/1     Running   0          25m
+pod/kube-prometheus-stack-prometheus-node-exporter-smz94        1/1     Running   0          25m
+pod/kube-prometheus-stack-prometheus-node-exporter-sqcz7        1/1     Running   0          25m
+pod/kube-prometheus-stack-prometheus-node-exporter-zvvxz        1/1     Running   0          25m
+pod/prometheus-kube-prometheus-stack-prometheus-0               2/2     Running   0          25m
 
-#### Step 6: Verify deployment
+NAME                                                     TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)                      AGE
+service/alertmanager-operated                            ClusterIP   None             <none>        9093/TCP,9094/TCP,9094/UDP   25m
+service/kube-prometheus-stack-alertmanager               ClusterIP   172.20.191.213   <none>        9093/TCP,8080/TCP            25m
+service/kube-prometheus-stack-grafana                    ClusterIP   172.20.130.27    <none>        80/TCP                       25m
+service/kube-prometheus-stack-kube-state-metrics         ClusterIP   172.20.37.198    <none>        8080/TCP                     25m
+service/kube-prometheus-stack-operator                   ClusterIP   172.20.232.59    <none>        443/TCP                      25m
+service/kube-prometheus-stack-prometheus                 ClusterIP   172.20.120.93    <none>        9090/TCP,8080/TCP            25m
+service/kube-prometheus-stack-prometheus-node-exporter   ClusterIP   172.20.61.234    <none>        9100/TCP                     25m
+service/prometheus-operated                              ClusterIP   None             <none>        9090/TCP                     25m
 
-```bash
-# Check infrastructure status
-./check-status.sh
+NAME                                                            DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR            AGE
+daemonset.apps/kube-prometheus-stack-prometheus-node-exporter   4         4         4       4            4           kubernetes.io/os=linux   25m
 
-# Check Kubernetes resources
-kubectl get pods -A
-kubectl get services
-kubectl get applications -n argocd
+NAME                                                       READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/kube-prometheus-stack-grafana              1/1     1            1           25m
+deployment.apps/kube-prometheus-stack-kube-state-metrics   1/1     1            1           25m
+deployment.apps/kube-prometheus-stack-operator             1/1     1            1           25m
 
-# Check Jenkins and Argo CD
-kubectl logs -f deployment/jenkins -n jenkins
-kubectl logs -f deployment/argocd-application-controller -n argocd
-```
+NAME                                                                  DESIRED   CURRENT   READY   AGE
+replicaset.apps/kube-prometheus-stack-grafana-8648dfd5fb              1         1         1       25m
+replicaset.apps/kube-prometheus-stack-kube-state-metrics-777fd46ffb   1         1         1       25m
+replicaset.apps/kube-prometheus-stack-operator-65896fd55c             1         1         1       25m
 
-## Access Information
+NAME                                                               READY   AGE
+statefulset.apps/alertmanager-kube-prometheus-stack-alertmanager   1/1     25m
+statefulset.apps/prometheus-kube-prometheus-stack-prometheus       1/1     25m
+admin@Olegs-MacBook-Pro GoiT-DevOps-Project % kubectl get svc -n monitoring
 
-After deployment, you'll receive access information for:
+NAME                                             TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)                      AGE
+alertmanager-operated                            ClusterIP   None             <none>        9093/TCP,9094/TCP,9094/UDP   25m
+kube-prometheus-stack-alertmanager               ClusterIP   172.20.191.213   <none>        9093/TCP,8080/TCP            25m
+kube-prometheus-stack-grafana                    ClusterIP   172.20.130.27    <none>        80/TCP                       25m
+kube-prometheus-stack-kube-state-metrics         ClusterIP   172.20.37.198    <none>        8080/TCP                     25m
+kube-prometheus-stack-operator                   ClusterIP   172.20.232.59    <none>        443/TCP                      25m
+kube-prometheus-stack-prometheus                 ClusterIP   172.20.120.93    <none>        9090/TCP,8080/TCP            25m
+kube-prometheus-stack-prometheus-node-exporter   ClusterIP   172.20.61.234    <none>        9100/TCP                     25m
+prometheus-operated                              ClusterIP   None             <none>        9090/TCP                     25m
 
-### Jenkins CI Server
-- **URL**: Provided via LoadBalancer (check deployment output)
-- **Username**: admin
-- **Password**: admin123!
-- **Purpose**: CI pipeline management and build monitoring
+admin@Olegs-MacBook-Pro GoiT-DevOps-Project % kubectl get svc -n monitoring
 
-### Argo CD Controller
-- **URL**: Provided via LoadBalancer (check deployment output)
-- **Username**: admin  
-- **Password**: admin123!
-- **Purpose**: CD pipeline monitoring and application management
+NAME                                             TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)                      AGE
+alertmanager-operated                            ClusterIP   None             <none>        9093/TCP,9094/TCP,9094/UDP   49m
+kube-prometheus-stack-alertmanager               ClusterIP   172.20.191.213   <none>        9093/TCP,8080/TCP            49m
+kube-prometheus-stack-grafana                    ClusterIP   172.20.130.27    <none>        80/TCP                       49m
+kube-prometheus-stack-kube-state-metrics         ClusterIP   172.20.37.198    <none>        8080/TCP                     49m
+kube-prometheus-stack-operator                   ClusterIP   172.20.232.59    <none>        443/TCP                      49m
+kube-prometheus-stack-prometheus                 ClusterIP   172.20.120.93    <none>        9090/TCP,8080/TCP            49m
+kube-prometheus-stack-prometheus-node-exporter   ClusterIP   172.20.61.234    <none>        9100/TCP                     49m
+prometheus-operated                              ClusterIP   None             <none>        9090/TCP                     49m
+admin@Olegs-MacBook-Pro GoiT-DevOps-Project % 
 
-### Django Application
-- **URL**: Available after first successful deployment
-- **Access**: Via Kubernetes LoadBalancer service
-
-## CI/CD Pipeline Configuration
-
-### Jenkins Pipeline (Jenkinsfile)
-
-The Jenkinsfile includes:
-- **Source Code Checkout**: Clones Django application repository
-- **Docker Build**: Uses Kaniko for secure container builds in Kubernetes
-- **ECR Push**: Automatic authentication and image push with build tags
-- **Helm Chart Update**: Updates values.yaml with new image tags
-- **Git Commit**: Pushes updated chart back to repository
-
-### Argo CD Application
-
-Automatically configured to:
-- **Monitor**: Git repository for Helm chart changes
-- **Sync**: Deploy updated applications to EKS cluster  
-- **Self-Heal**: Automatically fix configuration drift
-- **Prune**: Remove orphaned resources
-
-## Configuration
-
-### Environment Variables (ConfigMap)
-
-ConfigMap is configured in `charts/django-app/values.yaml` with the following variables:
-
-```yaml
-configMap:
-  data:
-    DEBUG: "False"
-    ALLOWED_HOSTS: "*"
-    DATABASE_ENGINE: "django.db.backends.postgresql"
-    DATABASE_NAME: "django_db"
-    DATABASE_USER: "django_user"
-    DATABASE_PASSWORD: "django_password"
-    DATABASE_HOST: "postgres-service"
-    DATABASE_PORT: "5432"
-    REDIS_HOST: "redis-service"
-    REDIS_PORT: "6379"
-    SECRET_KEY: "your-secret-key-change-in-production"
-```
-
-### CI/CD Integration
-
-The pipeline automatically:
-- Updates image.repository with ECR URL
-- Updates image.tag with Jenkins build number
-- Triggers Argo CD synchronization via Git changes
-
-### Autoscaling (HPA)
-
-- **Minimum replicas**: 2
-- **Maximum replicas**: 6  
-- **Trigger**: CPU > 70%
-- **Monitoring**: Automatic scaling based on load
-
-## Testing
-
-### CI/CD Pipeline Testing
-
-```bash
-# Trigger pipeline by pushing to Django repository
-git push origin main
-
-# Monitor Jenkins build
-kubectl logs -f -l app=jenkins -n jenkins
-
-# Monitor Argo CD synchronization
-kubectl logs -f -l app.kubernetes.io/name=argocd-application-controller -n argocd
-
-# Check application deployment
-kubectl get pods -l app=django-app
-```
-
-### Get external IP
-
-```bash
-# Django application service
-kubectl get service django-app
-
-# Jenkins UI
-kubectl get service jenkins -n jenkins
-
-# Argo CD UI
-kubectl get service argocd-server -n argocd
-```
-
-### Test autoscaling
-
-```bash
-kubectl run -i --tty load-generator --rm --image=busybox --restart=Never -- /bin/sh
-while true; do wget -q -O- http://django-app/; done
-
-kubectl get hpa django-app --watch
-```
-
-## Cleanup
-
-### Complete Infrastructure Cleanup
-
-```bash
-# Destroy all infrastructure
-./deploy-ci-cd.sh --destroy
-
-# Or using Terraform directly
+Як повністю видалити інфраструктуру і не отримати рахунок 💸
+1) Terraform destroy
 terraform destroy
-```
 
-### Individual Component Cleanup
-
-```bash
-# Remove Django application
-helm uninstall django-app
-
-# Remove Jenkins
-helm uninstall jenkins -n jenkins
-
-# Remove Argo CD  
-helm uninstall argocd -n argocd
-
-# Then destroy infrastructure
-terraform destroy
-```
-
-## Troubleshooting
-
-### CI/CD Issues
-
-```bash
-# Check Jenkins status and logs
-kubectl get pods -n jenkins
-kubectl logs deployment/jenkins -n jenkins
-
-# Check Argo CD status and logs  
-kubectl get pods -n argocd
-kubectl logs deployment/argocd-application-controller -n argocd
-
-# Force Argo CD synchronization
-kubectl patch app django-app -n argocd --type merge \
-  --patch='{"operation":{"sync":{"revision":"HEAD"}}}'
-
-# Re-run Jenkins setup
-./setup-jenkins.sh
-
-# Check overall system status
-./check-status.sh
-```
-
-### ECR issues
-
-```bash
-aws ecr describe-repositories --region us-west-2
-aws ecr list-images --repository-name microservice-project-ecr --region us-west-2
-
-# Test ECR authentication
-aws ecr get-login-password --region us-west-2 | docker login --username AWS --password-stdin $ECR_URL
-```
-
-### EKS issues
-
-```bash
-aws eks describe-cluster --name microservice-project-eks-cluster --region us-west-2
-aws eks describe-nodegroup --cluster-name microservice-project-eks-cluster --nodegroup-name microservice-project-worker-nodes --region us-west-2
-```
-
-### Helm issues
-
-```bash
-helm list
-helm history django-app
-helm get all django-app
-```
-
-## Additional Features
-
-### Automated CI/CD Pipeline
-
-The system provides:
-- **Zero-downtime deployments** via Kubernetes rolling updates
-- **Automatic rollback** capabilities via Argo CD
-- **Build artifact management** in ECR with automatic cleanup
-- **Monitoring and alerting** through Kubernetes events
-
-### Update application
-
-```bash
-# Push new code to trigger automatic CI/CD
-git add .
-git commit -m "Update application"
-git push origin main
-
-# Monitor deployment progress
-kubectl get pods -w
-kubectl get applications -n argocd
-
-# Manual deployment (if needed)
-helm upgrade django-app ./charts/django-app \
-  --set image.tag=<new-tag>
-```
-
-### Scaling and Monitoring
-
-```bash
-# Manual scaling
-kubectl scale deployment django-app --replicas=5
-
-# View HPA status
-kubectl get hpa django-app --watch
-
-# Monitor resource usage
-kubectl top pods
-kubectl top nodes
-```
-
-### Monitoring and Observability
-
-```bash
-# Kubernetes Dashboard (optional)
-kubectl apply -f https://raw.githubusercontent.com/kubernetes/dashboard/v2.7.0/aio/deploy/recommended.yaml
-
-# Create admin user
-kubectl create serviceaccount dashboard-admin-sa
-kubectl create clusterrolebinding dashboard-admin-sa \
-  --clusterrole=cluster-admin \
-  --serviceaccount=default:dashboard-admin-sa
-
-# Access Jenkins metrics
-kubectl port-forward svc/jenkins 8080:80 -n jenkins
-
-# Access Argo CD metrics  
-kubectl port-forward svc/argocd-server 8081:80 -n argocd
-```
-
-## Documentation
-
-- **[docs/CI_CD_GUIDE.md](docs/CI_CD_GUIDE.md)**: Comprehensive CI/CD setup and usage guide
-- **[docs/DEPLOYMENT_CHECKLIST.md](docs/DEPLOYMENT_CHECKLIST.md)**: Step-by-step deployment verification checklist
-- **[docs/QUICKSTART.md](docs/QUICKSTART.md)**: Quick start guide for immediate deployment
-- **[docs/SETUP.md](docs/SETUP.md)**: Detailed setup and configuration instructions
-- **[docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)**: Common issues and their solutions
-
-## Prerequisites
-
-- Terraform >= 1.0
-- AWS CLI configured with appropriate permissions
-- kubectl >= 1.24
-- Helm >= 3.0
-- Docker (for local testing)
-- Git configured with access tokens
-
-## Support
-
-For issues and troubleshooting:
-1. **Quick Start**: Check [docs/QUICKSTART.md](docs/QUICKSTART.md) for immediate deployment
-2. **Setup Issues**: Review [docs/SETUP.md](docs/SETUP.md) for detailed configuration
-3. **Common Problems**: Check [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) for solutions
-4. **System Status**: Run `./check-status.sh` for system status overview
-5. **Logs**: Review component logs using kubectl commands provided above
-
-
-
-admin@Olegs-MacBook-Pro microservice-project % kubectl get app -n argocd
-kubectl describe app django-app -n argocd | sed -n '1,120p'
-NAME         SYNC STATUS   HEALTH STATUS
-django-app   Synced        Healthy
-Name:         django-app
-Namespace:    argocd
-Labels:       app.kubernetes.io/managed-by=Helm
-Annotations:  meta.helm.sh/release-name: argocd-apps
-              meta.helm.sh/release-namespace: argocd
-API Version:  argoproj.io/v1alpha1
-Kind:         Application
-Metadata:
-  Creation Timestamp:  2026-02-01T09:35:00Z
-  Finalizers:
-    resources-finalizer.argocd.argoproj.io
-  Generation:        123
-  Resource Version:  32802
-  UID:               cdf6091b-3abb-4f00-8e6f-18509a2290d9
-Spec:
-  Destination:
-    Namespace:  django
-    Server:     https://kubernetes.default.svc
-  Project:      default
-  Source:
-    Helm:
-      Value Files:
-        values.yaml
-    Path:             charts/django-app
-    Repo URL:         https://github.com/olegsl2011/GoiT-DevOps-Project.git
-    Target Revision:  lesson-8-9
-  Sync Policy:
-    Automated:
-      Prune:      true
-      Self Heal:  true
-    Sync Options:
-      CreateNamespace=true
-Status:
-  Controller Namespace:  argocd
-  Health:
-    Status:  Healthy
-  History:
-    Deploy Started At:  2026-02-01T09:50:49Z
-    Deployed At:        2026-02-01T09:50:53Z
-    Id:                 0
-    Revision:           5570e80ea8b3075a7520131277c4a15feb8ac54a
-    Source:
-      Helm:
-        Value Files:
-          values.yaml
-      Path:             charts/django-app
-      Repo URL:         https://github.com/olegsl2011/GoiT-DevOps-Project.git
-      Target Revision:  lesson-8-9
-    Deploy Started At:  2026-02-01T10:33:21Z
-    Deployed At:        2026-02-01T10:33:22Z
-    Id:                 1
-    Revision:           ec605d99917c6afb15049725a2795f288c77106b
-    Source:
-      Helm:
-        Value Files:
-          values.yaml
-      Path:             charts/django-app
-      Repo URL:         https://github.com/olegsl2011/GoiT-DevOps-Project.git
-      Target Revision:  lesson-8-9
-    Deploy Started At:  2026-02-01T10:46:34Z
-    Deployed At:        2026-02-01T10:46:34Z
-    Id:                 2
-    Revision:           131a8503d11c29c774392340cc5454989727c256
-    Source:
-      Helm:
-        Value Files:
-          values.yaml
-      Path:             charts/django-app
-      Repo URL:         https://github.com/olegsl2011/GoiT-DevOps-Project.git
-      Target Revision:  lesson-8-9
-  Operation State:
-    Finished At:  2026-02-01T10:46:34Z
-    Message:      successfully synced (all tasks run)
-    Operation:
-      Initiated By:
-        Automated:  true
-      Retry:
-        Limit:  5
-      Sync:
-        Prune:     true
-        Revision:  131a8503d11c29c774392340cc5454989727c256
-        Sync Options:
-          CreateNamespace=true
-    Phase:       Succeeded
-    Started At:  2026-02-01T10:46:34Z
-    Sync Result:
-      Resources:
-        Group:       
-        Hook Phase:  Running
-        Kind:        ConfigMap
-        Message:     configmap/django-config unchanged
-        Name:        django-config
-        Namespace:   django
-        Status:      Synced
-        Sync Phase:  Sync
-        Version:     v1
-        Group:       
-        Hook Phase:  Running
-        Kind:        Service
-        Message:     service/django-app configured
-        Name:        django-app
-        Namespace:   django
-        Status:      Synced
-        Sync Phase:  Sync
-        Version:     v1
-        Group:       apps
-        Hook Phase:  Running
-        Kind:        Deployment
-        Message:     deployment.apps/django-app configured
-        Name:        django-app
-        Namespace:   django
-        Status:      Synced
-        Sync Phase:  Sync
-        Version:     v1
-        Group:       autoscaling
-        Hook Phase:  Running
-        Kind:        HorizontalPodAutoscaler
-        Message:     horizontalpodautoscaler.autoscaling/django-app unchanged
-        Name:        django-app
-        Namespace:   django
-admin@Olegs-MacBook-Pro microservice-project % 
-admin@Olegs-MacBook-Pro microservice-project % 
-admin@Olegs-MacBook-Pro microservice-project % 
-admin@Olegs-MacBook-Pro microservice-project % kubectl get all -n django
-kubectl get svc -n django
-NAME                              READY   STATUS    RESTARTS   AGE
-pod/django-app-6cc48466d5-7frxk   1/1     Running   0          16m
-pod/django-app-6cc48466d5-n4nc4   1/1     Running   0          15m
-
-NAME                 TYPE           CLUSTER-IP      EXTERNAL-IP                                                               PORT(S)        AGE
-service/django-app   LoadBalancer   172.20.12.245   af4f2f41971924b30b30ce397185982e-1288352411.us-west-2.elb.amazonaws.com   80:30820/TCP   71m
-
-NAME                         READY   UP-TO-DATE   AVAILABLE   AGE
-deployment.apps/django-app   2/2     2            2           71m
-
-NAME                                    DESIRED   CURRENT   READY   AGE
-replicaset.apps/django-app-674f79bc88   0         0         0       71m
-replicaset.apps/django-app-6cc48466d5   2         2         2       16m
-replicaset.apps/django-app-6f8b66565    0         0         0       29m
-
-NAME                                             REFERENCE               TARGETS         MINPODS   MAXPODS   REPLICAS   AGE
-horizontalpodautoscaler.autoscaling/django-app   Deployment/django-app   <unknown>/70%   2         6         2          71m
-NAME         TYPE           CLUSTER-IP      EXTERNAL-IP                                                               PORT(S)        AGE
-django-app   LoadBalancer   172.20.12.245   af4f2f41971924b30b30ce397185982e-1288352411.us-west-2.elb.amazonaws.com   80:30820/TCP   71m
-admin@Olegs-MacBook-Pro microservice-project % 
-
-
-admin@Olegs-MacBook-Pro microservice-project % DJ_URL="http://af4f2f41971924b30b30ce397185982e-1288352411.us-west-2.elb.amazonaws.com"
-curl -I $DJ_URL
-# або якщо є endpoint:
-curl -s $DJ_URL/health/ || true
-
-HTTP/1.1 200 OK
-Server: nginx/1.29.4
-Date: Sun, 01 Feb 2026 11:05:29 GMT
-Content-Type: text/html
-Content-Length: 3
-Last-Modified: Sun, 01 Feb 2026 10:07:45 GMT
-Connection: keep-alive
-ETag: "697f25f1-3"
-Accept-Ranges: bytes
-
-
-admin@Olegs-MacBook-Pro microservice-project % kubectl get svc -n django
-
-NAME         TYPE           CLUSTER-IP      EXTERNAL-IP                                                               PORT(S)        AGE
-django-app   LoadBalancer   172.20.12.245   af4f2f41971924b30b30ce397185982e-1288352411.us-west-2.elb.amazonaws.com   80:30820/TCP   93m
-
-
-admin@Olegs-MacBook-Pro GoiT-DevOps-Project % grep -nE "image:|repository:|tag:" -n charts/django-app/values.yaml
-
-5:image:
-6:  repository: "908061117191.dkr.ecr.us-west-2.amazonaws.com/goit-devops-project-ecr"
-8:  tag: "v2"
-admin@Olegs-MacBook-Pro GoiT-DevOps-Project % kubectl get app django-app -n argocd
-kubectl get deploy django-app -n django -o jsonpath='{.spec.template.spec.containers[0].image}{"\n"}'
-NAME         SYNC STATUS   HEALTH STATUS
-django-app   Synced        Healthy
-908061117191.dkr.ecr.us-west-2.amazonaws.com/goit-devops-project-ecr:v1
-admin@Olegs-MacBook-Pro GoiT-DevOps-Project % kubectl get app django-app -n argocd
-kubectl get deploy django-app -n django -o jsonpath='{.spec.template.spec.containers[0].image}{"\n"}'
-NAME         SYNC STATUS   HEALTH STATUS
-django-app   Synced        Healthy
-908061117191.dkr.ecr.us-west-2.amazonaws.com/goit-devops-project-ecr:v1
-admin@Olegs-MacBook-Pro GoiT-DevOps-Project % kubectl annotate app django-app -n argocd argocd.argoproj.io/refresh=hard --overwrite
-
-application.argoproj.io/django-app annotated
-admin@Olegs-MacBook-Pro GoiT-DevOps-Project % kubectl annotate app django-app -n argocd argocd.argoproj.io/refresh=hard --overwrite
-
-application.argoproj.io/django-app annotated
-admin@Olegs-MacBook-Pro GoiT-DevOps-Project % kubectl get app django-app -n argocd                                                 
-kubectl get deploy django-app -n django -o jsonpath='{.spec.template.spec.containers[0].image}{"\n"}'
-NAME         SYNC STATUS   HEALTH STATUS
-django-app   Synced        Progressing
-908061117191.dkr.ecr.us-west-2.amazonaws.com/goit-devops-project-ecr:v2
-admin@Olegs-MacBook-Pro GoiT-DevOps-Project % kubectl rollout status deploy/django-app -n django
-
-
-# Terraform RDS/Aurora module
-
-## What it does
-This module creates either:
-- classic AWS RDS instance (PostgreSQL/MySQL) when `use_aurora=false`
-- or Aurora cluster + instances when `use_aurora=true`
-
-In both cases it also creates:
-- DB Subnet Group
-- Security Group (+ ingress rules)
-- Parameter Group (RDS or Aurora cluster parameter group)
-
-## Usage
-
-### RDS example
-```hcl
-module "rds" {
-  source = "./modules/rds"
-  name   = "demo-db"
-
-  use_aurora = false
-
-  vpc_id             = module.vpc.vpc_id
-  private_subnet_ids = module.vpc.private_subnet_ids
-
-  engine                  = "postgres"
-  engine_version           = "15.4"
-  instance_class           = "db.t3.micro"
-  multi_az                 = false
-  parameter_group_family   = "postgres15"
-
-  allowed_cidr_blocks = ["10.0.0.0/16"]
-}
-
-
-  # module.rds.aws_db_instance.this[0] will be created
-
+2) Якщо backend bucket з Versioning — потрібно видалити ВСІ версії
+
+Інакше delete-bucket поверне BucketNotEmpty.
+
+BUCKET="terraform-state-bucket-<your-name>"
+
+# видалити всі версії
+aws s3api list-object-versions --bucket "$BUCKET" --output json \
+| jq -r '.Versions[]? | "\(.Key) \(.VersionId)"' \
+| while read -r key vid; do
+    aws s3api delete-object --bucket "$BUCKET" --key "$key" --version-id "$vid"
+  done
+
+# видалити delete markers
+aws s3api list-object-versions --bucket "$BUCKET" --output json \
+| jq -r '.DeleteMarkers[]? | "\(.Key) \(.VersionId)"' \
+| while read -r key vid; do
+    aws s3api delete-object --bucket "$BUCKET" --key "$key" --version-id "$vid"
+  done
+
+# видалити bucket
+aws s3api delete-bucket --bucket "$BUCKET" --region us-west-2
+DynamoDB lock table:
+aws dynamodb delete-table --table-name terraform-locks --region us-west-2

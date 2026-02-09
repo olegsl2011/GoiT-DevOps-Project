@@ -1,27 +1,24 @@
 resource "aws_db_parameter_group" "this" {
   count  = var.use_aurora ? 0 : 1
-  name   = "${var.name}-pg"
+  name   = "${var.name}-db-pg"
   family = var.parameter_group_family
 
   parameter {
-    name  = "max_connections"
-    value = tostring(var.max_connections)
+    name         = "max_connections"
+    value        = "200"
+    apply_method = "pending-reboot"
   }
 
   parameter {
-    name  = "log_statement"
-    value = var.log_statement
+    name         = "log_statement"
+    value        = "none"
+    apply_method = "immediate"
   }
 
   parameter {
-    name  = "work_mem"
-    value = var.work_mem
-  }
-
-  tags = var.tags
-
-  lifecycle {
-    create_before_destroy = true
+    name         = "work_mem"
+    value        = "4096"
+    apply_method = "immediate"
   }
 }
 
