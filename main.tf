@@ -41,26 +41,54 @@ module "ecr" {
 
 module "eks" {
   source = "./modules/eks"
-  
-  cluster_name        = "goit-devops-project-eks-cluster"
-  cluster_version     = "1.28"
-  vpc_id              = module.vpc.vpc_id
-  subnet_ids          = concat(module.vpc.public_subnet_ids, module.vpc.private_subnet_ids)
-  private_subnet_ids  = module.vpc.private_subnet_ids
-  
+
+  cluster_name       = "goit-devops-project-eks-cluster"
+  cluster_version    = "1.28"
+  vpc_id             = module.vpc.vpc_id
+  subnet_ids         = concat(module.vpc.public_subnet_ids, module.vpc.private_subnet_ids)
+  private_subnet_ids = module.vpc.private_subnet_ids
+
   node_group_name     = "goit-devops-project-worker-nodes"
   node_instance_types = ["t3.small"]
   node_desired_size   = 4
   node_max_size       = 12
   node_min_size       = 2
   node_disk_size      = 20
-  
+
   enable_irsa = true
-  
+
   tags = {
     Environment = "goit-devops-project"
     Project     = "goit-devops-project"
     ManagedBy   = "terraform"
+  }
+}
+module "rds" {
+  source = "./modules/rds"
+
+  name       = "goit-${terraform.workspace}-db"
+  use_aurora = false # true = Aurora, false = RDS
+
+  vpc_id             = module.vpc.vpc_id
+  private_subnet_ids = module.vpc.private_subnet_ids
+
+  allowed_cidr_blocks = ["10.0.0.0/16"]
+  # allowed_security_group_ids = [module.eks.node_security_group_id]
+
+  engine         = "postgres"
+  engine_version = "15.4"
+  instance_class = "db.t3.micro"
+  multi_az       = false
+
+  db_name         = "appdb"
+  master_username = "appuser"
+  master_password = "apppass"
+
+  parameter_group_family = "postgres15"
+
+  tags = {
+    Project = "goit"
+    Env     = terraform.workspace
   }
 }
 
